@@ -1,0 +1,15 @@
+master - nodes information
+	nodeHash:{"domain":node_name,"immature":0 or 1}
+	immature : 그 다음 도메인도 검색해야하는가.
+
+cache - cache server information
+	cacheKey = host:port
+	cacheKey:{}
+
+game - game information
+	gameId : string, should not contains ' '
+	gameId:{"reset_base":0,"reset_interval":86400}
+
+node[] - distributed user information
+	userKey:gameId + " "+userKey
+	userKey:{'s':score,'t':update_time,'f':[friend_ids]}
