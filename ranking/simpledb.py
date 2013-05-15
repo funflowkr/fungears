@@ -182,7 +182,10 @@ class DB(object):
 		if g is not None and g['k'] != key:
 			return
 		if g is None:
-			r = get_hash(str(random.random()))
+			if key is None:
+				r = get_hash(str(random.random()))
+			else:
+				r = key
 		else:
 			r = g['k']
 		self.game_domain.put_attributes(game_id, {'b':resetBase, 'i':resetInterval, 'k':r})
