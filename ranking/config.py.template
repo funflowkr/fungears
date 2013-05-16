@@ -1,3 +1,4 @@
 region = 'REGION' # 'ap-northeast-1'
+isTest = True
 access_key = 'YOUR_AMAZON_ACCESS_KEY'
 secret_key = 'YOUR_AMAZON_SECRET_KEY'

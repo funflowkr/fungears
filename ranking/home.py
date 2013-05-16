@@ -4,12 +4,14 @@ from flask import Flask, request
 import json
 import simpledb as db
 import string
+import config
+db.init(config.isTest)
 
 app = Flask(__name__)
 
-valid_char = string.ascii_letters+string.digits+'_'
+valid_char = set(string.ascii_letters+string.digits+'_')
 def is_valid_game_id(game_id):
-	return not game_id.translate(None, valid_char)
+	return not set(str(game_id)) - valid_char
 
 def check_game_secret(gameId):
 	secret = request.form['secret']
@@ -87,7 +89,7 @@ def ranking_from(gameId, userId):
 	froms = request.form['froms']
 	froms = [int(x) for x in froms.split(',')]
 	rankings = db.multiple_get_ranking_from(gameId, userId, froms)
-	return json.dumps(ranking)
+	return json.dumps([[int(x,16), y] for x, y in ranking])
 
 if __name__ == '__main__':
-	app.run()
+	app.run(host='0.0.0.0', port=80, debug=False)
