@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 import gevent
 import gevent.monkey
 import gevent.queue
@@ -159,7 +161,7 @@ class DB(object):
 		if only_from_cache:
 			return None
 		user = self.get_user(game_id, u_id)
-		return ','.join(user['f']).split(',')
+		return user['f']
 
 	def get_user_score(self, game_id, u_id, only_from_cache=False):
 		g = self.get_game(game_id)
@@ -220,7 +222,14 @@ class DB(object):
 			dom = self.find_domain_for_key(k, step)
 			try:
 				item = dom.get_item(k)
+				if 'f' not in item:
+					item['f'] = []
+				if 's' not in item:
+					item['s'] = 0
+				if 't' not in item:
+					item['t'] = int(time.time())
 				self.cache_user(game_id, u_id, item)
+				item = dict(s=int(item['s']),t=int(item['t']),f=','.join(item['f']).split(','))
 				if with_domain:
 					return item, dom
 				else:
@@ -231,10 +240,12 @@ class DB(object):
 				step += 1
 				continue
 			else:
+				dom = db.find_domain_for_key(k)
+				add_user(game_id, u_id)
 				if with_domain:
-					return None, dom
+					return dict(s=0,t=int(time.time()),f=[]), dom
 				else:
-					return None
+					return dict(s=0,t=int(time.time()),f=[])
 
 def setShardingCount(n):
 	old_domain_count = db.domain_count
@@ -275,7 +286,10 @@ def add_user(game_id,u_id):
 		return
 	k = build_key(game_id, u_id)
 	dom = db.find_domain_for_key(k)
-	dom.put_attributes(k, {'s':0,'t':int(time.time())})
+	r = dom.put_attributes(k, {'s':0,'t':int(time.time())})
+	if r:
+		db.cache_user_score(game_id, u_id, 0, int(time.time()))
+	return r
 
 def update_friends(game_id, u_id, f_ids):
 	g = get_game(game_id)
@@ -382,12 +396,26 @@ def get_ranking_from(game_id, u_id, view_u_id):
 	scores = get_friend_score_list(game_id, view_u_id)
 	return 1 + sum(1 for x, y in scores if y > score)
 
+def multiple_get_ranking_from(game_id, u_id, froms):
+	g = get_game(game_id)
+	if g is None:
+		return [[f, 1] for f in froms]
+	rankings = []
+	def helper(game_id, u_id, view_id):
+		rankings.append([view_id, get_ranking_from(game_id, u_id, view_id)])
+	for f in froms:
+		tasks.put((helper, game_id, u_id, f))
+		gevent.sleep()
+	tasks.join()
+	return rankings
+
 def update_score(game_id, u_id, score):
 	g = get_game(game_id)
 	if g is None:
 		return False
 	t = int(time.time())
 	k = build_key(game_id, u_id)
+	step = 0
 	while 1:
 		user, old_dom = db.get_user(game_id, u_id, with_domain = True)
 		if user is None:
@@ -407,8 +435,9 @@ def update_score(game_id, u_id, score):
 				return True
 			except boto.exception.SDBResponseError as e:
 				#print e
-				gevent.sleep(.1)
+				gevent.sleep(.1 + 0.05 * random.randrange(1<<min(8,step)))
 				pass
 		else:
 			return False
+		step += 1
 
