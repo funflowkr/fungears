@@ -5,6 +5,7 @@ import json
 import simpledb as db
 import string
 import config
+from werkzeug.exceptions import *
 db.init(config.isTest)
 
 app = Flask(__name__)
@@ -16,7 +17,9 @@ def is_valid_game_id(game_id):
 def check_game_secret(gameId):
 	secret = request.form['secret']
 	g = db.get_game(gameId)
-	assert g['k'] == secret
+	if g['k'] != secret:
+		raise Forbidden('{"error":"invalid secret"}')
+	#assert g['k'] == secret
 
 @app.route('/')
 def index():
@@ -29,9 +32,8 @@ def admin_page():
 @app.route('/game/<gameId>', methods=['GET','POST'])
 def game_page(gameId):
 	if not is_valid_game_id(gameId):
-		return json.dumps(dict(error="invalid id", id=gameId)), 400
+		return json.dumps(dict(error="invalid id", id=gameId)), 403
 	if request.method == 'POST':
-		assert not db.get_game(gameId)
 		resetBase = int(request.form['base'])
 		resetInterval = int(request.form['interval'])
 		secret = None
@@ -92,4 +94,4 @@ def ranking_from(gameId, userId):
 	return json.dumps([[int(x,16), y] for x, y in ranking])
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=80, debug=False)
+	app.run(host='0.0.0.0', port=80, debug=True)
