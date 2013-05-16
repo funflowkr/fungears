@@ -9,6 +9,11 @@ valid_char = string.ascii_letters+string.digits+'_'
 def is_valid_game_id(game_id):
 	return not game_id.translate(None, valid_char)
 
+def check_game_key(gameId):
+	key = request.form['key']
+	g = db.get_game(gameId)
+	assert g['k'] == key
+
 @app.route('/')
 def index():
 	return "Hello there"
@@ -23,8 +28,8 @@ def game_page(gameId):
 		return json.dumps(dict(error="invalid id", id=gameId)), 400
 	if request.method == 'POST':
 		raise not db.find_game(gameId):
-		resetBase = int(request.form['reset_base'])
-		resetInterval = int(request.form['reset_interval'])
+		resetBase = int(request.form['base'])
+		resetInterval = int(request.form['interval'])
 		key = None
 		if 'key' in request.form:
 			key = request.form['key']
@@ -48,16 +53,22 @@ def user_page(gameId, userId):
 
 @app.route('/update_friends/<gameId>/<int:userId>', methods=['POST'])
 def update_friends(gameId, userId):
-	return ''
+	check_game_key(gameId)
+	friends = request.form['friends']
+	friends = [int(x) for x in friends.split(',')]
+	ret = db.update_friends(gameId, userId, friends)
+	return json.dumps(dict(success=ret))
 
 @app.route('/friend_scores/<gameId>/<int:userId>')
 def friend_scores(gameId, userId):
 	score_list = db.get_friend_score_list(gameId, userId)
-	return json.dumps(score_list)
+	return json.dumps([[int(x,16), y] for x, y in score_list])
 
-@app.route('/update_score/<gameId>/<int:userId>/<int:score>')
+@app.route('/update_score/<gameId>/<int:userId>/<int:score>', method=['POST'])
 def update_score(gameId, userId, score):
-	return ''
+	isUpdated = db.update_score(gameId, userId, score)
+	scoreNow = db.db.get_user_score(gameId, userId)
+	return json.dumps(dict(score=scoreNow, updated=isUpdated))
 
 @app.route('/ranking/<gameId>/<int:userId>')
 def ranking(gameId, userId):

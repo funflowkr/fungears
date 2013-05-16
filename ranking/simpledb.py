@@ -277,10 +277,10 @@ def add_user(game_id,u_id):
 	dom = db.find_domain_for_key(k)
 	dom.put_attributes(k, {'s':0,'t':int(time.time())})
 
-def add_friends(game_id, u_id, f_ids):
+def update_friends(game_id, u_id, f_ids):
 	g = get_game(game_id)
 	if g is None:
-		return
+		return False
 	k = build_key(game_id,u_id)
 	dom = db.find_domain_for_key(k)
 	user, old_dom = db.get_user(game_id, u_id, with_domain = True)
@@ -301,6 +301,7 @@ def add_friends(game_id, u_id, f_ids):
 		backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
 	else:
 		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s'], 't':user['t']}), boto.exception.SDBResponseError)
+	return True
 
 def get_ranking(game_id, u_id):
 	return get_ranking_from(game_id, u_id, u_id)
@@ -317,7 +318,7 @@ def get_friend_score_list(game_id, u_id):
 	f_ids = db.get_user_friends(game_id, u_id)
 	if f_ids is None:
 		return []
-	scores = {}
+	scores = dict((f, 0) for f in f_ids)
 	scores['%x'%u_id] = db.get_user_score(game_id, u_id)
 	step = 0
 	while f_ids:
@@ -364,13 +365,12 @@ def get_friend_score_list(game_id, u_id):
 		if f_ids and verbose_:
 			print 'not proceed',len(proceed), len(f_ids), f_ids[0]
 
-	print scores
 	return scores.items()
 
 def get_ranking_from(game_id, u_id, view_u_id):
 	g = get_game(game_id)
 	if g is None:
-		return
+		return 1
 	t = int(time.time())
 	t1 = time.time()
 	user = db.get_user(game_id, u_id)
@@ -385,7 +385,7 @@ def get_ranking_from(game_id, u_id, view_u_id):
 def update_score(game_id, u_id, score):
 	g = get_game(game_id)
 	if g is None:
-		return
+		return False
 	t = int(time.time())
 	k = build_key(game_id, u_id)
 	while 1:
@@ -393,7 +393,6 @@ def update_score(game_id, u_id, score):
 		if user is None:
 			return False
 		dom = db.find_domain_for_key(k)
-		print k, dom
 
 		oldt = user['t']
 		if '.' in user['t']:
@@ -402,10 +401,8 @@ def update_score(game_id, u_id, score):
 			try:
 				if old_dom.name != dom.name:
 					dom.put_attributes(k, {'s':score, 't':t, 'f':user['f']})
-					print k,score,t,dom
 				else:
 					dom.put_attributes(k, {'s':score, 't':t}, expected_value=['t',oldt])
-					print k,score,t,dom
 				db.cache_user_score(game_id, u_id, score, t)
 				return True
 			except boto.exception.SDBResponseError as e:
