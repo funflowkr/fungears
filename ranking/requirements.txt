@@ -1,0 +1,5 @@
+Flask==0.9
+Jinja2==2.6
+Werkzeug==0.8.3
+boto==2.8.0
+python-memcached==1.51
