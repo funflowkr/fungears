@@ -200,12 +200,14 @@ class DB(object):
 			g = self.game_domain.get_item(game_id)
 			if g is None:
 				return g
-			resetBase = g['b']
-			resetInterval = g['i']
+			resetBase = int(g['b'])
+			resetInterval = int(g['i'])
 			r = g['k']
 			cache.put(game_id + 'g', '%d %d %s ' % (resetBase, resetInterval, r))
 		else:
 			b,i,k = g.split(' ',2)
+			b = int(b)
+			i = int(i)
 			g = dict(b=b,i=i,k=k)
 		return g
 
