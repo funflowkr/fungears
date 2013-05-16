@@ -21,6 +21,8 @@
 
 ### API
 
+모든 요청은 기본적으로 JSON으로 한다
+
   - GET /game/(gameId)
     - 해당 gameId의 게임에 대한 정보를 얻음
     - Return value: {"id":gameId, "base":리셋 기준 시간, "interval":리셋 간격}
@@ -52,7 +54,7 @@
     - 해당 유저의 친구 목록을 설정하는 함수
     - Paramter
       - secret: gameId에 해당하는 secret
-      - friends: 친구들의 userId를 ,로 분리하여 지정. (예: 1,2,3)
+      - friends: 친구들의 userId를 배렬로 지정. (예: [1,2,3])
     - Return value
 
         {  
@@ -82,7 +84,7 @@
     - 다른 유저 기준으로 등수를 얻음. (다른 유저의 친구 리스트 기준)
     - Parameter
       - secret: gameId에 해당하는 secret
-      - from: 기준이 될 유저의 userId를 ,로 분리해서 지정. 하나만 지정 가능. (예: 1,2,3)
+      - view_from: 기준이 될 유저의 userId를 배열로 지정. (예: [1,2,3])
     - Return value
 
         [[id1, rank1], [id2, rank2], ...]

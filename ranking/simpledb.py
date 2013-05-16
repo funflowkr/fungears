@@ -3,6 +3,7 @@
 import gevent
 import gevent.monkey
 import gevent.queue
+import gevent.coros
 gevent.monkey.patch_all()
 
 import boto
@@ -158,6 +159,8 @@ class DB(object):
 		c = cache.get(k+'f')
 		if c:
 			return c.split(',')
+		if c == '':
+			return []
 		if only_from_cache:
 			return None
 		user = self.get_user(game_id, u_id)
@@ -184,10 +187,7 @@ class DB(object):
 		if g is not None and g['k'] != key:
 			return
 		if g is None:
-			if key is None:
-				r = get_hash(str(random.random()))
-			else:
-				r = key
+			r = get_hash(str(random.random()))
 		else:
 			r = g['k']
 		self.game_domain.put_attributes(game_id, {'b':resetBase, 'i':resetInterval, 'k':r})
@@ -220,25 +220,34 @@ class DB(object):
 			if cached_score and cached_friend:
 				u = {}
 				u['s'], u['t'] = cached_score.split()
-				u['f'] = cached_friend
+				if cached_friend == '':
+					u['f'] = []
+				else:
+					u['f'] = cached_friend.split(',')
 				return u
 		step = 0
 		while 1:
 			dom = self.find_domain_for_key(k, step)
 			try:
 				item = dom.get_item(k)
-				if 'f' not in item:
-					item['f'] = []
-				if 's' not in item:
-					item['s'] = 0
-				if 't' not in item:
-					item['t'] = int(time.time())
-				self.cache_user(game_id, u_id, item)
-				item = dict(s=int(item['s']),t=int(item['t']),f=','.join(item['f']).split(','))
-				if with_domain:
-					return item, dom
-				else:
-					return item
+				if item is not None:
+					if 'f' not in item:
+						item['f'] = []
+					if 's' not in item:
+						item['s'] = 0
+					if 't' not in item:
+						item['t'] = int(time.time())
+					friends = ''
+					if type(item['f']) == list:
+						friends = ','.join(item['f'])
+					else:
+						friends = item['f']
+					item = dict(s=int(item['s']),t=int(item['t']),f=friends.split(','))
+					self.cache_user(game_id, u_id, item)
+					if with_domain:
+						return item, dom
+					else:
+						return item
 			except boto.exception.SDBResponseError:
 				continue
 			if not dom.mature:
@@ -283,7 +292,7 @@ def get_game(game_id):
 	return db.get_game(game_id)
 
 def put_game(game_id, resetBase, resetInterval, key=None):
-	db.put_game(game_id, resetBase, resetInterval, key)
+	return db.put_game(game_id, resetBase, resetInterval, key)
 
 def add_user(game_id,u_id):
 	g = get_game(game_id)
@@ -320,6 +329,7 @@ def update_friends(game_id, u_id, f_ids):
 		backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
 	else:
 		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s'], 't':user['t']}), boto.exception.SDBResponseError)
+	db.cache_user_friend(game_id, u_id, friends)
 	return True
 
 def get_ranking(game_id, u_id):
@@ -342,8 +352,8 @@ def get_friend_score_list(game_id, u_id):
 	step = 0
 	while f_ids:
 		proceed = set()
+		sem = gevent.coros.Semaphore(1)
 		for dom, friends_all in db.split_keys_by_domain(game_id, f_ids, step).iteritems():
-			print 'after split',dom,friends_all
 			def helper(dom, part):
 				query = 'select s,t from %s where ' % dom.name
 				query += '(' +  ' or '.join("itemName() = '%s'" % build_key(game_id,f) for f in part) + ')'
@@ -354,12 +364,12 @@ def get_friend_score_list(game_id, u_id):
 						proceed.add(parse_key(f.name)[1])
 						db.cache_user_score(game_id, parse_key(f.name)[1], f['s'], f['t'])
 				# if all data comes from cache, no need to query
-				print dom,query
 				#if '()' not in query:
 				backoff(select_try, boto.exception.SDBResponseError)
 				if dom.mature:
 					for f in part:
 						proceed.add(f)
+				sem.release()
 			partSize = 20
 			collectedPartsNotInCache = []
 			for f in friends_all:
@@ -369,6 +379,7 @@ def get_friend_score_list(game_id, u_id):
 				else:
 					scores[f] = f_score
 					proceed.add(f)
+					sem.release()
 				if len(collectedPartsNotInCache) == partSize:
 					tasks.put((helper, dom, collectedPartsNotInCache))
 					collectedPartsNotInCache = []
@@ -376,7 +387,9 @@ def get_friend_score_list(game_id, u_id):
 			if collectedPartsNotInCache:
 				tasks.put((helper, dom, collectedPartsNotInCache))
 				collectedPartsNotInCache = []
-		tasks.join()
+		for _ in f_ids:
+			sem.acquire()
+		#tasks.join()
 		f_ids = list(set(f_ids) - proceed)
 		step += 1
 		if step > 5:
@@ -428,8 +441,8 @@ def update_score(game_id, u_id, score):
 		dom = db.find_domain_for_key(k)
 
 		oldt = user['t']
-		if '.' in user['t']:
-			user['t'] = str(int(float(user['t'])))
+		#if '.' in user['t']:
+			#user['t'] = str(int(float(user['t'])))
 		if get_current_score(g, int(user['s']), user['t']) < score and int(user['t']) < t:
 			try:
 				if old_dom.name != dom.name:

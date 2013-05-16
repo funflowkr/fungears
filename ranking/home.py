@@ -5,6 +5,7 @@ import json
 import simpledb as db
 import string
 import config
+import urlparse
 from werkzeug.exceptions import *
 db.init(config.isTest)
 
@@ -15,6 +16,8 @@ def is_valid_game_id(game_id):
 	return not set(str(game_id)) - valid_char
 
 def check_game_secret(gameId):
+	if request.data:
+		request.form = json.loads(request.data)
 	secret = request.form['secret']
 	g = db.get_game(gameId)
 	if g['k'] != secret:
@@ -31,6 +34,8 @@ def admin_page():
 
 @app.route('/game/<gameId>', methods=['GET','POST'])
 def game_page(gameId):
+	if request.data:
+		request.form = json.loads(request.data)
 	if not is_valid_game_id(gameId):
 		return json.dumps(dict(error="invalid id", id=gameId)), 403
 	if request.method == 'POST':
@@ -61,11 +66,10 @@ def game_page(gameId):
 def update_friends(gameId, userId):
 	check_game_secret(gameId)
 	friends = request.form['friends']
-	friends = [int(x) for x in friends.split(',')]
 	ret = db.update_friends(gameId, userId, friends)
 	return json.dumps(dict(success=ret))
 
-@app.route('/friend_scores/<gameId>/<int:userId>')
+@app.route('/friend_scores/<gameId>/<int:userId>', methods=['GET'])
 def friend_scores(gameId, userId):
 	check_game_secret(gameId)
 	score_list = db.get_friend_score_list(gameId, userId)
@@ -88,10 +92,9 @@ def update_score(gameId, userId, score):
 @app.route('/ranking_from/<gameId>/<int:userId>')
 def ranking_from(gameId, userId):
 	check_game_secret(gameId)
-	froms = request.form['froms']
-	froms = [int(x) for x in froms.split(',')]
-	rankings = db.multiple_get_ranking_from(gameId, userId, froms)
-	return json.dumps([[int(x,16), y] for x, y in ranking])
+	view_from = request.form['view_from']
+	rankings = db.multiple_get_ranking_from(gameId, userId, view_from)
+	return json.dumps(rankings)
 
 if __name__ == '__main__':
 	app.run(host='0.0.0.0', port=80, debug=True)
