@@ -191,7 +191,7 @@ class DB(object):
 		else:
 			r = g['k']
 		self.game_domain.put_attributes(game_id, {'b':resetBase, 'i':resetInterval, 'k':r})
-		cache.put(game_id + 'g', '%d %d %s ' % (resetBase, resetInterval, r))
+		cache.put(game_id + 'g', '%d %d %s' % (resetBase, resetInterval, r))
 		return r
 		
 	def get_game(self, game_id):
@@ -203,7 +203,7 @@ class DB(object):
 			resetBase = int(g['b'])
 			resetInterval = int(g['i'])
 			r = g['k']
-			cache.put(game_id + 'g', '%d %d %s ' % (resetBase, resetInterval, r))
+			cache.put(game_id + 'g', '%d %d %s' % (resetBase, resetInterval, r))
 		else:
 			b,i,k = g.split(' ',2)
 			b = int(b)
