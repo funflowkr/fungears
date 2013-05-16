@@ -12,6 +12,15 @@
 
 ## Ranking Service
 
+### Installation
+
+  - sudo yum install libevent-devel
+  - sudo yum install python-devel
+  - sudo pip install -r ranking/requirements.txt
+  - make ranking/config.py from ranking/confg.py.template
+
+### API
+
   - GET /game/(gameId)
     - 해당 gameId의 게임에 대한 정보를 얻음
     - Return value: {"id":gameId, "base":리셋 기준 시간, "interval":리셋 간격}
