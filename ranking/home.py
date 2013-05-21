@@ -78,8 +78,8 @@ def friend_scores(gameId, userId):
 
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
 def update_score(gameId, userId, score):
-	forced = request.form.get('force', False)
 	check_game_secret(gameId)
+	forced = request.form.get('forced', False)
 	isUpdated = db.update_score(gameId, userId, score, forced)
 	scoreNow = db.db.get_user_score(gameId, userId)
 	return json.dumps(dict(score=scoreNow, updated=isUpdated))
