@@ -42,4 +42,17 @@ def ranking_test():
 	print call('GET', '/ranking_from/5sec/2', dict(secret=key5sec, view_from=[0,1]))
 
 #print call('POST', '/update_friends/5sec/0', dict(secret=key5sec, friends=[1,2]))
-ranking_test()
+#ranking_test()
+#print call('GET', '/debug_get_scores_and_ranking/5sec/0', dict(secret=key5sec))
+
+def update_force_test():
+	#call("POST", '/update_friends/5sec/3', dict(secret=key5sec, friends=[]))
+	call("POST", '/update_score/5sec/3/14', dict(secret=key5sec))
+	print call('GET', '/friend_scores/5sec/3', dict(secret=key5sec))
+	call("POST", '/update_score/5sec/3/12', dict(secret=key5sec, forced=False))
+	print call('GET', '/friend_scores/5sec/3', dict(secret=key5sec))
+	call("POST", '/update_score/5sec/3/12', dict(secret=key5sec, forced=True))
+	print call('GET', '/friend_scores/5sec/3', dict(secret=key5sec))
+
+update_force_test()
+	
