@@ -427,7 +427,7 @@ def multiple_get_ranking_from(game_id, u_id, froms):
 	tasks.join()
 	return rankings
 
-def update_score(game_id, u_id, score):
+def update_score(game_id, u_id, score, forced = False):
 	g = get_game(game_id)
 	if g is None:
 		return False
@@ -443,7 +443,7 @@ def update_score(game_id, u_id, score):
 		oldt = user['t']
 		#if '.' in user['t']:
 			#user['t'] = str(int(float(user['t'])))
-		if get_current_score(g, int(user['s']), user['t']) < score and int(user['t']) < t:
+		if get_current_score(g, int(user['s']), user['t']) < score and int(user['t']) < t or forced:
 			try:
 				if old_dom.name != dom.name:
 					dom.put_attributes(k, {'s':score, 't':t, 'f':user['f']})

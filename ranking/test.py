@@ -41,5 +41,5 @@ def ranking_test():
 	print call('GET', '/friend_scores/5sec/2', dict(secret=key5sec))
 	print call('GET', '/ranking_from/5sec/2', dict(secret=key5sec, view_from=[0,1]))
 
-print call('POST', '/update_friends/5sec/0', dict(secret=key5sec, friends=[1,2]))
+#print call('POST', '/update_friends/5sec/0', dict(secret=key5sec, friends=[1,2]))
 ranking_test()

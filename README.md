@@ -29,8 +29,8 @@
   - POST /game/(gameId)
     - 새로운 게임 생성 / 리셋 기준 시간, 간격 재설정
     - Parameters
-      - base: 리셋의 기준이 되는 시간
-  	  - interval: 리셋 간격
+      - base: 리셋의 기준이 되는 시간 (1970년 1월 1일 0시 0분 0초 기준, 0초 단위)
+  	  - interval: 리셋 간격 (초 단위)
 	    - secret (옵션): 게임 생성을 제외한 API를 호출할 때 필요. 생성시 리턴됨.
     - Return value
       - 새로운 게임 생성에 성공한 경우
@@ -68,11 +68,13 @@
     - Return value
       - [[id1, score1], [id2, score2], ...]
       - 0번 유저가 1, 2, 3번 유저를 친구로 가지고 있는 경우의 리턴 값은 [[0,0],[1,0],[2,0],[3,0]]의 형태가 된다.
+	  - 점수가 큰 유저부터 정렬되서 리턴됨.
 
   - POST /update_score/(gameId)/(userId)/(score)
     - 해당 유저의 점수를 갱신
     - Paramter
       - secret: gameId에 해당하는 secret
+	  - forced(옵션): true로 주면 강제로 점수 설정 가능
     - Return value
 
         {  
@@ -90,3 +92,14 @@
         [[id1, rank1], [id2, rank2], ...]
 
       - from에 주어진 각 id별로 등수를 얻어 배열에 담아 리턴함.
+
+  - GET /debug_get_scores_and_ranking/(gameId)/(userId)
+    - friend_scores와 ranking_from을 합친 기능
+	- 부하가 클 것으로 예상됨
+    - Parameter
+      - secret: gameId에 해당하는 secret
+    - Return value
+
+        [[id1, score1, rank1], [id2, score2, rank2], ...]
+
+      - 친구와 본인을 포함해서 점수와 해당 친구 기준의 랭킹 값을 하나로 합쳐서 리턴.

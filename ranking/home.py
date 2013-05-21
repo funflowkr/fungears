@@ -78,8 +78,9 @@ def friend_scores(gameId, userId):
 
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
 def update_score(gameId, userId, score):
+	forced = request.form.get('force', False)
 	check_game_secret(gameId)
-	isUpdated = db.update_score(gameId, userId, score)
+	isUpdated = db.update_score(gameId, userId, score, forced)
 	scoreNow = db.db.get_user_score(gameId, userId)
 	return json.dumps(dict(score=scoreNow, updated=isUpdated))
 
@@ -95,6 +96,15 @@ def ranking_from(gameId, userId):
 	view_from = request.form['view_from']
 	rankings = db.multiple_get_ranking_from(gameId, userId, view_from)
 	return json.dumps(rankings)
+
+@app.route('/debug_get_scores_and_ranking/<gameId>/<int:userId>')
+def debug_get_scores_and_ranking_from(gameId, userId):
+	check_game_secret(gameId)
+	score_list = db.get_friend_score_list(gameId, userId)
+	score_list.sort(key=lambda x:-x[1])
+	view_from = [int(x,16) for x, y in score_list]
+	rankings = dict(db.multiple_get_ranking_from(gameId, userId, view_from))
+	return json.dumps([[int(x,16), y, rankings[int(x,16)]] for x, y in score_list])
 
 if __name__ == '__main__':
 	app.run(host='0.0.0.0', port=80, debug=True)
