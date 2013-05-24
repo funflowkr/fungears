@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+  
+  <head>
+    <title>game_detail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+    <link rel="stylesheet" href="css/bootstrap.css">
+    <link rel="stylesheet" href="css/bootstrap-responsive.css">
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+  </head>
+  
+  <body>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="brand" href="#">fungears</a>
+          <a></a>
+          <div class="navbar-content">
+            <ul class="nav">
+              <li class="active">
+                <a href="#">My Games</a> 
+              </li>
+              <li>
+                <a href="#">Documents</a> 
+              </li>
+              <li>
+                <a href="#">Downloads</a> 
+              </li>
+              <li>
+                <a href="#">Supports</a> 
+              </li>
+              <li>
+                <a href="#"><br></a> 
+              </li>
+            </ul>
+          </div>
+          <div class="btn-group pull-right">
+            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+        <img src="https://www.gravatar.com/avatar/b83ebbe7bb157fff43e5f2c5d2cffd6e?s=24"> Kyunghyun Son
+        <span class="caret"></span>
+        </a>
+            <ul class="dropdown-menu">
+              <li>
+                <a href="#">Account Settings</a> 
+              </li>
+              <li>
+                <a href="#">LogOut</a> 
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span3">
+          <ul class="nav nav-list">
+            <li class="nav-header">Game management</li>
+            <li>
+              <a href="game_add.html">Create New Game ( 신규 게임 등록 )&nbsp;</a> 
+            </li>
+            <li>
+              <a href="#">Game List</a> 
+            </li>
+            <li class="divider"></li>
+            <li class="nav-header">Game List</li>
+            <li class="active">
+              <a href="#">Angel Project</a>
+              <a></a> 
+            </li>
+            <li>
+              <a href="#">오울블루</a> 
+            </li>
+            <li></li>
+            <li>
+              <a href="#">Kritika</a>
+              <a></a> 
+            </li>
+          </ul>
+          <ul></ul>
+          <ul></ul>
+          <ul></ul>
+          <div class="well">
+            <p>
+              <b>Tip:</b> You can add additional components to your layout easily.</p>
+          </div>
+        </div>
+        <div class="span9">
+          <h1 class="page-header">Project Name</h1>
+          <div class="tabbable">
+            <!-- Only required for left/right tabs -->
+            <ul class="nav nav-tabs">
+              <li class="active">
+                <a href="#tab1" data-toggle="tab">Basic Info</a> 
+              </li>
+              <li>
+                <a href="#tab2" data-toggle="tab">Ranking</a> 
+              </li>
+              <li>
+                <a href="#tab3" data-toggle="tab">Shop</a> 
+              </li>
+            </ul>
+            <div class="tab-content">
+              <div class="tab-pane active" id="tab1">
+                <h3>Basic Info</h3>
+                <form>
+                  <table class="table table-striped table-bordered">
+                    <tbody>
+                      <tr>
+                        <td>Game Name</td>
+                        <td>
+                          <input type="text" class="input-xxlarge" value="Angel Project"> 
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Company Name</td>
+                        <td>
+                          <input type="text" class="input-xxlarge" value="funflow,Inc"> 
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>API KEY</td>
+                        <td>
+                          <input type="text" class="input-xxlarge" value="QxRmnmfAMmDT18hAz05TbmQn4F55fjNDMbDBDfyQ"> 
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Contact Email</td>
+                        <td>
+                          <input type="text" class="input-xxlarge" value="sson@funflow.co.kr"> 
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Contact Phone</td>
+                        <td>
+                          <input type="text" class="input-xxlarge" value="010-9087-9542"> 
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </form>
+                <a class="btn">Update</a>
+                <a class="btn btn-danger">Delete</a>
+                <h3>Chart</h3>
+                <form>
+                  <label>Select Dates</label>
+                  <input type="text" class="input-medium" placeholder="05/23/13"> ~
+                  <input type="text" class="input-medium" placeholder="05/25/13">
+                  <button type="submit" class="btn btn-primary">Update</button>
+                  <label>Yesterday | Last 7 Days | Last 30 Days | Last 60 Days</label>
+                </form>
+                <img src="https://lh6.googleusercontent.com/--BTD69lJ5pk/UZ8J8A4oqtI/AAAAAAAAAfY/KRvYVoae_S4/w1240-h556-no/graph.png"
+                width="100%">
+                <h3>Detail</h3>
+                <table class="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>get friend_scores</th>
+                      <th>ranking_from</th>
+                      <th>update_score</th>
+                      <th>update_friends</th>
+                      <th>get_sccores_ranking</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>2013-05-24</td>
+                      <td>23</td>
+                      <td>234</td>
+                      <td>2</td>
+                      <td>1</td>
+                      <td>6</td>
+                      <td>256</td>
+                    </tr>
+                    <tr>
+                      <td>2013-05-23
+                        <br> 
+                      </td>
+                      <td>42</td>
+                      <td>23</td>
+                      <td>3</td>
+                      <td>3</td>
+                      <td>8</td>
+                      <td>34</td>
+                    </tr>
+                    <tr>
+                      <td>2013-05-22</td>
+                      <td>123</td>
+                      <td>123</td>
+                      <td>4</td>
+                      <td>2</td>
+                      <td>6</td>
+                      <td>245</td>
+                    </tr>
+                    <tr>
+                      <td>2013-05-21</td>
+                      <td>123</td>
+                      <td>1254</td>
+                      <td>56</td>
+                      <td>4</td>
+                      <td>7</td>
+                      <td>1345</td>
+                    </tr>
+                    <tr>
+                      <td>2013-05-20</td>
+                      <td>12</td>
+                      <td>123</td>
+                      <td>3</td>
+                      <td>5</td>
+                      <td>9</td>
+                      <td>134</td>
+                    </tr>
+                    <tr>
+                      <td>Total</td>
+                      <td>123</td>
+                      <td>123123</td>
+                      <td>123</td>
+                      <td>12</td>
+                      <td>123</td>
+                      <td>234234</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="tab-pane" id="tab2">
+                <p>Howdy, I'm in Section 2.</p>
+              </div>
+              <div class="tab-pane" id="tab3">
+                <p>Howdy, I'm in Section 3.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+
+</html>
