@@ -326,7 +326,8 @@ def update_friends(game_id, u_id, f_ids):
 	if merged:
 		friends.append(','.join(merged))
 	if dom.name == old_dom.name:
-		backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
+		if friends:
+			backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
 	else:
 		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s'], 't':user['t']}), boto.exception.SDBResponseError)
 	db.cache_user_friend(game_id, u_id, friends)
