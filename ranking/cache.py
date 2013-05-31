@@ -9,16 +9,19 @@ from util import get_hash, HashRing
 
 cache = None
 
+hit = 0
+total = 0
+
 class MemCachePool(object):
 	def __init__(self, addr):
 		self.addr = addr
 		self.pool = {}
 	def __str__(self):
-		return "MemCachePool({})".format(self.addr)
+		return "MemCachePool({0})".format(self.addr)
 	def conn(self):
 		poolId = thread.get_ident()
 		if poolId not in self.pool:
-			self.pool[poolId] = memcache.Client([addr], debug=True)
+			self.pool[poolId] = memcache.Client([self.addr], debug=True)
 		return self.pool[poolId]
 
 
@@ -53,15 +56,24 @@ class Cache(object):
 			self.ring.remove_node(r)
 
 	def get(self, key):
+		global hit, total
 		r = self.ring.find_node(key).conn()
-		return r.get(key)
+		ret = r.get(key)
+		total += 1
+		if ret is not None:
+			hit += 1
+		else:
+			print 'MISS', hit*100/total, key, self.ring.find_node(key)
+		return ret
 		
 	def put(self, key, value, timelimit = None):
 		r = self.ring.find_node(key).conn()
 		if timelimit is None:
-			r.set(key, value)
+			ret = r.set(key, value)
 		else:
-			r.set(key, value, timelimit)
+			ret = r.set(key, value, timelimit)
+		if ret == 0:
+			print "CACHE_PUT FAIL ", self.ring.find_node(key)
 
 def init(info):
 	global cache
