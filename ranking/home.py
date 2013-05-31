@@ -4,6 +4,7 @@ from flask import Flask, request
 import json
 import simpledb as db
 import string
+import time
 import config
 import urlparse
 from werkzeug.exceptions import *
@@ -53,6 +54,7 @@ def game_page(gameId):
 	else:
 		#elif request.method == 'GET':
 		g = db.get_game(gameId)
+		print g
 		if g:
 			return json.dumps(dict(id=gameId, base=g['b'], interval=g['i']))
 		else:
@@ -71,10 +73,14 @@ def update_friends(gameId, userId):
 
 @app.route('/friend_scores/<gameId>/<int:userId>', methods=['GET'])
 def friend_scores(gameId, userId):
+	startTime = time.time()
 	check_game_secret(gameId)
+	print time.time() - startTime
 	score_list = db.get_friend_score_list(gameId, userId)
 	score_list.sort(key=lambda x:-x[1])
-	return json.dumps([[int(x,16), y] for x, y in score_list])
+	ret = json.dumps([[int(x,16), y] for x, y in score_list])
+	print time.time() - startTime
+	return ret
 
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
 def update_score(gameId, userId, score):

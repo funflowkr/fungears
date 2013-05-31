@@ -89,7 +89,12 @@ class DB(object):
 		self.load_caches()
 
 	def load_caches(self):
-		cache.init(['ranking-cache-test.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
+		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
+		cache.init([
+	'ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0002.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0003.apne1.cache.amazonaws.com:11211',
+])
 		#cache.init(['192.168.0.4:11211'])
 
 	def load_servers(self):
@@ -337,6 +342,10 @@ def get_ranking(game_id, u_id):
 	return get_ranking_from(game_id, u_id, u_id)
 
 def get_friend_score_list(game_id, u_id):
+	print 
+	print 'get_friend_score_list'
+	friendStartTime = time.time()
+	print time.time() - friendStartTime
 	g = get_game(game_id)
 	if g is None:
 		return []
@@ -351,6 +360,7 @@ def get_friend_score_list(game_id, u_id):
 	scores = dict((f, 0) for f in f_ids)
 	scores['%x'%u_id] = db.get_user_score(game_id, u_id)
 	step = 0
+	print time.time() - friendStartTime, "START", len(f_ids)
 	while f_ids:
 		proceed = set()
 		sem = gevent.coros.Semaphore(1)
@@ -360,7 +370,7 @@ def get_friend_score_list(game_id, u_id):
 				query += '(' +  ' or '.join("itemName() = '%s'" % build_key(game_id,f) for f in part) + ')'
 				def select_try():
 					for f in dom.select(query):
-						print 'select_try',f,f.name,parse_key(f.name)[1]
+						#print 'select_try',f,f.name,parse_key(f.name)[1]
 						scores[parse_key(f.name)[1]] = get_current_score(g, f['s'], f['t'])
 						proceed.add(parse_key(f.name)[1])
 						db.cache_user_score(game_id, parse_key(f.name)[1], f['s'], f['t'])
@@ -369,8 +379,12 @@ def get_friend_score_list(game_id, u_id):
 				backoff(select_try, boto.exception.SDBResponseError)
 				if dom.mature:
 					for f in part:
-						proceed.add(f)
-				sem.release()
+						if f not in proceed:
+							proceed.add(f)
+							if f not in scores:
+								scores[f] = 0
+							sem.release()
+							db.cache_user_score(game_id, f, 0, int(time.time()))
 			partSize = 20
 			collectedPartsNotInCache = []
 			for f in friends_all:
@@ -390,14 +404,17 @@ def get_friend_score_list(game_id, u_id):
 				collectedPartsNotInCache = []
 		for _ in f_ids:
 			sem.acquire()
+		#print time.time() - friendStartTime, "LOOP END"
 		#tasks.join()
 		f_ids = list(set(f_ids) - proceed)
 		step += 1
 		if step > 5:
 			break
 		if f_ids and verbose_:
+			print time.time() - friendStartTime, "RELOOP"
 			print 'not proceed',len(proceed), len(f_ids), f_ids[0]
 
+	print time.time() - friendStartTime, "FINAL"
 	return scores.items()
 
 def get_ranking_from(game_id, u_id, view_u_id):
