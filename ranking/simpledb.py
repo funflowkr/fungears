@@ -1,11 +1,15 @@
 # encoding: utf-8
 
+import multiprocessing
+
 import gevent
 import gevent.monkey
 import gevent.queue
 import gevent.coros
 gevent.monkey.patch_all()
 
+
+import thread
 import boto
 import boto.sdb as sdb
 
@@ -24,7 +28,9 @@ REPLICATION_COUNT = 16
 
 conn = boto.sdb.connect_to_region(config.region,
 	aws_access_key_id=config.access_key,
-	aws_secret_access_key=config.secret_key)
+	aws_secret_access_key=config.secret_key,
+	is_secure=False
+)
 
 def get_last_reset_time(g, t = None):
 	if t is None:
@@ -43,7 +49,7 @@ def get_current_score(g, score, t, lt = None):
 def DomainCreator(preCreateDomainName, mature):
 	def CreateDomainHelp():
 		conn.create_domain(preCreateDomainName)
-		gevent.sleep(1)
+		gevent.sleep()
 		conn.get_domain(preCreateDomainName)
 	backoff(CreateDomainHelp, boto.exception.SDBResponseError)
 	for idx in xrange(REPLICATION_COUNT):
@@ -58,6 +64,7 @@ class DomainProxy(boto.sdb.domain.Domain):
 
 class DB(object):
 	def __init__(self, isTest = True):
+		self.gameCache = {}
 		if isTest:
 			self.master_domain_name = 'master_test'
 			self.prefix = 'node_test'
@@ -91,9 +98,14 @@ class DB(object):
 	def load_caches(self):
 		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
 		cache.init([
-	'ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0002.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0003.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0001.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0002.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0003.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0004.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0005.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0006.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0007.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-medium.ispvtc.0008.apne1.cache.amazonaws.com:11211',
 ])
 		#cache.init(['192.168.0.4:11211'])
 
@@ -106,12 +118,12 @@ class DB(object):
 			print 'load_servers'
 
 		for item in dom.select('select * from %s' % self.master_domain_name, consistent_read = True):
-			if item['domain'] not in domains:
-				domains[item['domain']] = conn.get_domain(item['domain'], validate=False)
 			mature = 1
 			if 'mature' in item:
 				mature = int(item['mature'])
-			self.servers.append((item.name, item['domain'], DomainProxy(domains[item['domain']], mature)))
+			if item['domain'] not in domains:
+				domains[item['domain']] = DomainProxy(conn.get_domain(item['domain'], validate=False), mature)
+			self.servers.append((item.name, item['domain'], domains[item['domain']]))
 
 		self.servers.sort()
 
@@ -171,12 +183,16 @@ class DB(object):
 		user = self.get_user(game_id, u_id)
 		return user['f']
 
-	def get_user_score(self, game_id, u_id, only_from_cache=False):
+	def get_user_score(self, game_id, u_id, only_from_cache=False, prefetch = None):
 		g = self.get_game(game_id)
 		if g is None:
 			return 0
 		k = build_key(game_id, u_id)
-		c = cache.get(k+'s')
+		c = None
+		if prefetch and k+'s' in prefetch:
+			c = prefetch[k+'s']
+		if c is None:
+			c = cache.get(k+'s')
 		if c:
 			s, t = c.split(' ')
 			return get_current_score(g, s, int(t))
@@ -200,20 +216,27 @@ class DB(object):
 		return r
 		
 	def get_game(self, game_id):
+		if game_id in self.gameCache:
+			if self.gameCache[game_id]['t'] - time.time() < 30*60:
+				return self.gameCache[game_id]
 		g = cache.get(game_id + 'g')
 		if g is None:
 			g = self.game_domain.get_item(game_id)
+			print self.game_domain ,g
 			if g is None:
 				return g
 			resetBase = int(g['b'])
 			resetInterval = int(g['i'])
 			r = g['k']
 			cache.put(game_id + 'g', '%d %d %s' % (resetBase, resetInterval, r))
+			g['t'] = time.time()
 		else:
 			b,i,k = g.split(' ',2)
 			b = int(b)
 			i = int(i)
 			g = dict(b=b,i=i,k=k)
+			g['t'] = time.time()
+		self.gameCache[game_id] = g
 		return g
 
 
@@ -275,7 +298,7 @@ def setShardingCount(n):
 	db.load_servers()
 
 
-def init(isTest = True, workerCount = 200, verbose = False):
+def init(isTest = True, workerCount = 50, verbose = False):
 	global db,tasks, verbose_
 	verbose_ = verbose
 	tasks = gevent.queue.JoinableQueue(workerCount*2)
@@ -345,7 +368,6 @@ def get_friend_score_list(game_id, u_id):
 	print 
 	print 'get_friend_score_list'
 	friendStartTime = time.time()
-	print time.time() - friendStartTime
 	g = get_game(game_id)
 	if g is None:
 		return []
@@ -357,23 +379,48 @@ def get_friend_score_list(game_id, u_id):
 	f_ids = db.get_user_friends(game_id, u_id)
 	if f_ids is None:
 		return []
+	# TEST
+	#print 'TEST: limiting friends to 100'
+	#f_ids = f_ids[:100]
 	scores = dict((f, 0) for f in f_ids)
 	scores['%x'%u_id] = db.get_user_score(game_id, u_id)
 	step = 0
-	print time.time() - friendStartTime, "START", len(f_ids)
+	#print time.time() - friendStartTime, "START", len(f_ids)
+	debug_fc = 0
+	debug_fc2 = 0
+	print 'BEFORE_FOR', time.time() - friendStartTime
+	cacheData = cache.mget(build_key(game_id, x)+'s' for x in f_ids)
+	qn = [0,0]
 	while f_ids:
 		proceed = set()
 		sem = gevent.coros.Semaphore(1)
-		for dom, friends_all in db.split_keys_by_domain(game_id, f_ids, step).iteritems():
+		createTaskSem = gevent.coros.Semaphore(1)
+		subTasks = []
+		print 'BEFORE_SPLIT', time.time() - friendStartTime
+		splitResult = db.split_keys_by_domain(game_id, f_ids, step).iteritems()
+		print 'AFTER_SPLIT', time.time() - friendStartTime
+		for dom, friends_all in splitResult:
+			debug_fc+=len(friends_all)
+			#print 'FOR', dom, len(friends_all), time.time() - friendStartTime
 			def helper(dom, part):
+				#print 'helper',dom,part,time.time()-friendStartTime
 				query = 'select s,t from %s where ' % dom.name
-				query += '(' +  ' or '.join("itemName() = '%s'" % build_key(game_id,f) for f in part) + ')'
+				#query += '(' +  ' or '.join("itemName() = '%s'" % build_key(game_id,f) for f in part) + ')'
+				query += 'itemName() in (' +  ', '.join("'%s'" % build_key(game_id,f) for f in part) + ')'
 				def select_try():
-					for f in dom.select(query):
+					qn[0] += 1
+					t=time.time()
+					tt=t
+					select_result = dom.select(query)
+					for f in select_result:
+						t2=time.time()
 						#print 'select_try',f,f.name,parse_key(f.name)[1]
 						scores[parse_key(f.name)[1]] = get_current_score(g, f['s'], f['t'])
 						proceed.add(parse_key(f.name)[1])
+						sem.release()
 						db.cache_user_score(game_id, parse_key(f.name)[1], f['s'], f['t'])
+						t += time.time() - t2
+					qn.append((time.time() - t, time.time() - tt))
 				# if all data comes from cache, no need to query
 				#if '()' not in query:
 				backoff(select_try, boto.exception.SDBResponseError)
@@ -386,35 +433,57 @@ def get_friend_score_list(game_id, u_id):
 							sem.release()
 							db.cache_user_score(game_id, f, 0, int(time.time()))
 			partSize = 20
-			collectedPartsNotInCache = []
-			for f in friends_all:
-				f_score = db.get_user_score(game_id, f, only_from_cache = True)
-				if f_score is None:
-					collectedPartsNotInCache.append(f)
-				else:
-					scores[f] = f_score
-					proceed.add(f)
-					sem.release()
-				if len(collectedPartsNotInCache) == partSize:
-					tasks.put((helper, dom, collectedPartsNotInCache))
-					collectedPartsNotInCache = []
-				gevent.sleep(0)
-			if collectedPartsNotInCache:
-				tasks.put((helper, dom, collectedPartsNotInCache))
+			def create_task_helper(friends_all, dom, proceed, sem, createTaskSem, subTasks):
+				#print 'create_task_helper', time.time() - friendStartTime
+				#create_task_helpertime = time.time()
 				collectedPartsNotInCache = []
+				for f in friends_all:
+					f_score = db.get_user_score(game_id, f, only_from_cache = True, prefetch = cacheData)
+					if f_score is None:
+						collectedPartsNotInCache.append(f)
+					else:
+						qn[1] += 1
+						scores[f] = f_score
+						proceed.add(f)
+						sem.release()
+						createTaskSem.release()
+					if len(collectedPartsNotInCache) == partSize:
+						subTasks.append((helper, dom, collectedPartsNotInCache))
+						for f in collectedPartsNotInCache:
+							createTaskSem.release()
+						collectedPartsNotInCache = []
+					#gevent.sleep(0)
+				if collectedPartsNotInCache:
+					#tasks.put((helper, dom, collectedPartsNotInCache))
+					subTasks.append((helper, dom, collectedPartsNotInCache))
+					for f in collectedPartsNotInCache:
+						createTaskSem.release()
+					collectedPartsNotInCache = []
+				#print 'create_task_helper log', time.time() - create_task_helpertime, len(friends_all)
+				#print 'create_task_helper end', time.time() - friendStartTime
+			tasks.put((create_task_helper, friends_all, dom, proceed, sem, createTaskSem, subTasks))
+			#tasks.put((helper, dom, collectedPartsNotInCache))
+		print time.time() - friendStartTime, "CREATE LOOP END", len(f_ids)
+		for _ in f_ids:
+			createTaskSem.acquire()
+			while subTasks:
+				x = subTasks.pop()
+				tasks.put(x)
+		print time.time() - friendStartTime, "LOOP END", len(f_ids)
 		for _ in f_ids:
 			sem.acquire()
-		#print time.time() - friendStartTime, "LOOP END"
+		print time.time() - friendStartTime, "ACQUIRE END", len(f_ids)
 		#tasks.join()
 		f_ids = list(set(f_ids) - proceed)
 		step += 1
 		if step > 5:
 			break
-		if f_ids and verbose_:
+		if f_ids:# and verbose_:
 			print time.time() - friendStartTime, "RELOOP"
 			print 'not proceed',len(proceed), len(f_ids), f_ids[0]
 
-	print time.time() - friendStartTime, "FINAL"
+	conn.print_usage()
+	print time.time() - friendStartTime, "FINAL", qn
 	return scores.items()
 
 def get_ranking_from(game_id, u_id, view_u_id):
@@ -446,34 +515,42 @@ def multiple_get_ranking_from(game_id, u_id, froms):
 	return rankings
 
 def update_score(game_id, u_id, score, forced = False):
+	startTime = time.time()
 	g = get_game(game_id)
 	if g is None:
-		return False
+		return False, 0
 	t = int(time.time())
 	k = build_key(game_id, u_id)
 	step = 0
 	while 1:
+		print time.time() - startTime, step
 		user, old_dom = db.get_user(game_id, u_id, with_domain = True)
 		if user is None:
-			return False
+			return False, 0
 		dom = db.find_domain_for_key(k)
 
 		oldt = user['t']
 		#if '.' in user['t']:
 			#user['t'] = str(int(float(user['t'])))
-		if get_current_score(g, int(user['s']), user['t']) < score and int(user['t']) < t or forced:
+		currentScore = get_current_score(g, user['s'], user['t'])
+		if currentScore < score or forced:
 			try:
+				print time.time() - startTime, step, 'before put'
 				if old_dom.name != dom.name:
+					print 'A'
 					dom.put_attributes(k, {'s':score, 't':t, 'f':user['f']})
 				else:
+					print 'B'
 					dom.put_attributes(k, {'s':score, 't':t}, expected_value=['t',oldt])
+				print time.time() - startTime, step, 'before cache'
 				db.cache_user_score(game_id, u_id, score, t)
-				return True
+				print time.time() - startTime, step, 'return'
+				return True, score
 			except boto.exception.SDBResponseError as e:
 				#print e
 				gevent.sleep(.1 + 0.05 * random.randrange(1<<min(8,step)))
 				pass
 		else:
-			return False
+			return False, currentScore
 		step += 1
 

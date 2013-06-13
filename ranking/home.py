@@ -21,6 +21,7 @@ def check_game_secret(gameId):
 		request.form = json.loads(request.data)
 	secret = request.form['secret']
 	g = db.get_game(gameId)
+	print g
 	if g['k'] != secret:
 		raise Forbidden('{"error":"invalid secret"}')
 	#assert g['k'] == secret
@@ -84,10 +85,11 @@ def friend_scores(gameId, userId):
 
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
 def update_score(gameId, userId, score):
+	startTime = time.time()
 	check_game_secret(gameId)
 	forced = request.form.get('forced', False)
-	isUpdated = db.update_score(gameId, userId, score, forced)
-	scoreNow = db.db.get_user_score(gameId, userId)
+	isUpdated, scoreNow = db.update_score(gameId, userId, score, forced)
+	print 'UPDATE_SCORE', time.time() - startTime
 	return json.dumps(dict(score=scoreNow, updated=isUpdated))
 
 # 쓸모가 없다
@@ -113,4 +115,4 @@ def debug_get_scores_and_ranking_from(gameId, userId):
 	return json.dumps([[int(x,16), y, rankings[int(x,16)]] for x, y in score_list])
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=80, debug=True)
+	app.run(host='0.0.0.0', port=80, debug=False)

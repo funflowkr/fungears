@@ -52,6 +52,8 @@ class HashRing(object):
 			self.ring[key] = node
 			self.sorted_keys.append(key)
 		self.sorted_keys.sort()
+		#for x in self.sorted_keys:
+			#print x, self.ring[x]
 
 	def remove_node(self, node):
 		assert node in self.nodes
