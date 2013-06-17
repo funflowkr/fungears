@@ -1,7 +1,29 @@
 import hashlib
 import random
 import gevent
+import gevent.queue
 import bisect
+
+tasks = None
+
+def init_workers(workerCount):
+	global tasks
+	if tasks is not None:
+		return
+	tasks = gevent.queue.JoinableQueue(workerCount*2)
+	for i in xrange(workerCount):
+		def worker():
+			while True:
+				item = tasks.get()
+				try:
+					item[0](*item[1:])
+				except Exception, e:
+					print >>sys.stderr, e
+					raise
+				tasks.task_done()
+
+		gevent.spawn(worker)
+	
 
 def backoff(f, exc, max_try_count = None):
 	try_count = 0

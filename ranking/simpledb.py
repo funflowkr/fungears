@@ -20,7 +20,8 @@ import sys
 
 import cache
 import config
-from util import get_hash, HashRing, build_key, backoff, parse_key
+from util import get_hash, HashRing, build_key, backoff, parse_key, init_workers
+import util
 
 verbose_ = True
 
@@ -98,14 +99,14 @@ class DB(object):
 	def load_caches(self):
 		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
 		cache.init([
-	'ranking-cache-medium.ispvtc.0001.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0002.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0003.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0004.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0005.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0006.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0007.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-medium.ispvtc.0008.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0002.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0003.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0004.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0005.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0006.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0007.apne1.cache.amazonaws.com:11211',
+	'ranking-cache-small.ispvtc.0008.apne1.cache.amazonaws.com:11211',
 ])
 		#cache.init(['192.168.0.4:11211'])
 
@@ -299,21 +300,10 @@ def setShardingCount(n):
 
 
 def init(isTest = True, workerCount = 50, verbose = False):
-	global db,tasks, verbose_
+	global db,verbose_, tasks
 	verbose_ = verbose
-	tasks = gevent.queue.JoinableQueue(workerCount*2)
-	for i in xrange(workerCount):
-		def worker():
-			while True:
-				item = tasks.get()
-				try:
-					item[0](*item[1:])
-				except Exception, e:
-					print >>sys.stderr, e
-					raise
-				tasks.task_done()
-
-		gevent.spawn(worker)
+	util.init_workers(workerCount)
+	tasks = util.tasks
 	db = DB(isTest = isTest)
 
 def get_game(game_id):
@@ -464,12 +454,14 @@ def get_friend_score_list(game_id, u_id):
 			tasks.put((create_task_helper, friends_all, dom, proceed, sem, createTaskSem, subTasks))
 			#tasks.put((helper, dom, collectedPartsNotInCache))
 		print time.time() - friendStartTime, "CREATE LOOP END", len(f_ids)
+		subTasksCount = 0
 		for _ in f_ids:
 			createTaskSem.acquire()
 			while subTasks:
 				x = subTasks.pop()
+				subTasksCount += 1
 				tasks.put(x)
-		print time.time() - friendStartTime, "LOOP END", len(f_ids)
+		print time.time() - friendStartTime, "LOOP END", len(f_ids), subTasksCount
 		for _ in f_ids:
 			sem.acquire()
 		print time.time() - friendStartTime, "ACQUIRE END", len(f_ids)
@@ -483,7 +475,7 @@ def get_friend_score_list(game_id, u_id):
 			print 'not proceed',len(proceed), len(f_ids), f_ids[0]
 
 	conn.print_usage()
-	print time.time() - friendStartTime, "FINAL", qn
+	print time.time() - friendStartTime, "FINAL"
 	return scores.items()
 
 def get_ranking_from(game_id, u_id, view_u_id):
@@ -509,8 +501,9 @@ def multiple_get_ranking_from(game_id, u_id, froms):
 	def helper(game_id, u_id, view_id):
 		rankings.append([view_id, get_ranking_from(game_id, u_id, view_id)])
 	for f in froms:
-		tasks.put((helper, game_id, u_id, f))
-		gevent.sleep()
+		helper(game_id, u_id, f)
+		#tasks.put((helper, game_id, u_id, f))
+		#gevent.sleep()
 	tasks.join()
 	return rankings
 
@@ -537,10 +530,8 @@ def update_score(game_id, u_id, score, forced = False):
 			try:
 				print time.time() - startTime, step, 'before put'
 				if old_dom.name != dom.name:
-					print 'A'
 					dom.put_attributes(k, {'s':score, 't':t, 'f':user['f']})
 				else:
-					print 'B'
 					dom.put_attributes(k, {'s':score, 't':t}, expected_value=['t',oldt])
 				print time.time() - startTime, step, 'before cache'
 				db.cache_user_score(game_id, u_id, score, t)

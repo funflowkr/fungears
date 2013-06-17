@@ -1,4 +1,5 @@
-addr = 'ec2-54-249-172-147.ap-northeast-1.compute.amazonaws.com'
+#addr = 'ec2-54-249-172-147.ap-northeast-1.compute.amazonaws.com'
+addr = 'localhost'
 
 import urllib
 import httplib
@@ -24,7 +25,7 @@ def test_game_change():
 	assert json.loads(call('GET', '/game/5sec')[1])['interval'] == 3*60
 	call('POST', '/game/5sec', dict(base=0, interval=30, secret=key5sec))
 	assert json.loads(call('GET', '/game/5sec')[1])['interval'] == 30
-test_game_change()
+#test_game_change()
 
 def test_no_error_on_not_exists_users():
 	print call('GET', '/friend_scores/5sec/10000', dict(secret=key5sec))
@@ -54,5 +55,8 @@ def update_force_test():
 	call("POST", '/update_score/5sec/3/12', dict(secret=key5sec, forced=True))
 	print call('GET', '/friend_scores/5sec/3', dict(secret=key5sec))
 
-update_force_test()
+#update_force_test()
 	
+#print call('GET', '/game/stress')
+key = 'e5ce29d42a93fa8cb45b542066c9517240e00f06'
+print call('GET', '/ranking_from/stress/0', dict(secret=key, view_from=[4]*1))
