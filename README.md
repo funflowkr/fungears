@@ -62,6 +62,7 @@
         }
 
   - GET /friend_scores/(gameId)/(userId)
+    POST /friend_scores/(gameId)/(userId)
     - 해당 유저의 본인 점수 및 친구 점수를 읽어옴
     - Paramter
       - secret: gameId에 해당하는 secret
@@ -83,6 +84,7 @@
         }
 
   - GET /ranking_from/(gameId)/(userId)
+    POST /ranking_from/(gameId)/(userId)
     - 다른 유저 기준으로 등수를 얻음. (다른 유저의 친구 리스트 기준)
     - Parameter
       - secret: gameId에 해당하는 secret
@@ -94,6 +96,7 @@
       - from에 주어진 각 id별로 등수를 얻어 배열에 담아 리턴함.
 
   - GET /debug_get_scores_and_ranking/(gameId)/(userId)
+    POST /debug_get_scores_and_ranking/(gameId)/(userId)
     - friend_scores와 ranking_from을 합친 기능
 	- 부하가 클 것으로 예상됨
     - Parameter
