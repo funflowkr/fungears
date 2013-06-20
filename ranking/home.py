@@ -70,9 +70,10 @@ def update_friends(gameId, userId):
 	check_game_secret(gameId)
 	friends = request.form['friends']
 	ret = db.update_friends(gameId, userId, friends)
+	db.update_api_usage(gameId, 'update_friends')
 	return json.dumps(dict(success=ret))
 
-@app.route('/friend_scores/<gameId>/<int:userId>', methods=['GET'])
+@app.route('/friend_scores/<gameId>/<int:userId>', methods=['GET','POST'])
 def friend_scores(gameId, userId):
 	startTime = time.time()
 	check_game_secret(gameId)
@@ -81,6 +82,7 @@ def friend_scores(gameId, userId):
 	score_list.sort(key=lambda x:-x[1])
 	ret = json.dumps([[int(x,16), y] for x, y in score_list])
 	print time.time() - startTime
+	db.update_api_usage(gameId, 'friend_scores')
 	return ret
 
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
@@ -90,6 +92,7 @@ def update_score(gameId, userId, score):
 	forced = request.form.get('forced', False)
 	isUpdated, scoreNow = db.update_score(gameId, userId, score, forced)
 	print 'UPDATE_SCORE', time.time() - startTime
+	db.update_api_usage(gameId, 'update_score')
 	return json.dumps(dict(score=scoreNow, updated=isUpdated))
 
 # 쓸모가 없다
@@ -103,6 +106,7 @@ def ranking_from(gameId, userId):
 	check_game_secret(gameId)
 	view_from = request.form['view_from']
 	rankings = db.multiple_get_ranking_from(gameId, userId, view_from)
+	db.update_api_usage(gameId, 'ranking_from', len(view_from))
 	return json.dumps(rankings)
 
 @app.route('/debug_get_scores_and_ranking/<gameId>/<int:userId>')
@@ -112,7 +116,8 @@ def debug_get_scores_and_ranking_from(gameId, userId):
 	score_list.sort(key=lambda x:-x[1])
 	view_from = [int(x,16) for x, y in score_list]
 	rankings = dict(db.multiple_get_ranking_from(gameId, userId, view_from))
+	db.update_api_usage(gameId, 'debug_get_scores_and_ranking')
 	return json.dumps([[int(x,16), y, rankings[int(x,16)]] for x, y in score_list])
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=80, debug=False)
+	app.run(host='0.0.0.0', port=80, debug=True)
