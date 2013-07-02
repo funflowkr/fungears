@@ -19,7 +19,7 @@ total = 0
 
 class LocalCache(object):
 	#def __init__(self, size = 1000000, life = 60):
-	def __init__(self, size = 1, life = 60):
+	def __init__(self, size = 1000000, life = 60):
 		self.size = size
 		self.life = life
 		self.lru = collections.deque()
@@ -45,6 +45,7 @@ class LocalCache(object):
 	def __setitem__(self, k, v):
 		if self.lru and self.lru[-1][0] == k:
 			self.lru[-1] = (k, time.time())
+			self.m[k][0] = v
 			return
 		t = time.time()
 		self.lru.append((k, t))
@@ -106,6 +107,7 @@ class Cache(object):
 			self.ring.remove_node(r)
 
 	def mget(self, keys):
+		_t = time.time()
 		global hit, total
 		res = {}
 		split = {}
@@ -117,18 +119,23 @@ class Cache(object):
 					res[key] = ret
 					continue
 			split.setdefault(self.ring.find_node(key), []).append(key)
-		sem = gevent.coros.Semaphore(1)
+		sem = gevent.coros.Semaphore(0)
+		print 'CACHE_BEFORE_SPLIT',time.time()-_t
 		for node, subKeys in split.iteritems():
 			#print 'MGET', node, len(subKeys)
 			def helper(localCache, node, subKeys, res):
+				print 'CACHE_DOING', id(node), time.time()-_t
 				ret = node.conn().get_multi(subKeys)
+				print 'CACHE_DONE', id(node), time.time()-_t
 				for k, v in ret.iteritems():
 					localCache[k] = v
 				res.update(ret)
 				sem.release()
 			util.tasks.put((helper, self.localCache, node, subKeys, res))
+		print 'CACHE_AFTER_SPLIT',time.time()-_t
 		for _ in split:
 			sem.acquire()
+		print 'CACHE_AFTER_ACQUIRE',time.time()-_t
 		hit += len(res)
 		if random.randrange(100) == 0:
 			print 'HITRATE', hit*100/total
@@ -181,11 +188,13 @@ def mget(keys):
 		return None
 	return cache.mget(keys)
 def get(key):
+	#print 'CACHE GET',key,
 	if cache is None:
 		return None
 	return cache.get(str(key))
 
 def put(key, value, timelimit = None):
+	#print 'CACHE PUT',key,value
 	if cache is None:
 		return
 	cache.put(str(key), str(value), timelimit)

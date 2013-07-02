@@ -36,6 +36,7 @@ def admin_page():
 
 @app.route('/game/<gameId>', methods=['GET','POST'])
 def game_page(gameId):
+	print 'hello'
 	if request.data:
 		request.form = json.loads(request.data)
 	if not is_valid_game_id(gameId):
