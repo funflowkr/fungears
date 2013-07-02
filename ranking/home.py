@@ -85,6 +85,18 @@ def friend_scores(gameId, userId):
 	db.update_api_usage(gameId, 'friend_scores')
 	return ret
 
+@app.route('/friend_scores_before_last_reset/<gameId>/<int:userId>', methods=['GET','POST'])
+def friend_scores_before_last_reset(gameId, userId):
+	startTime = time.time()
+	check_game_secret(gameId)
+	print time.time() - startTime
+	score_list = db.get_friend_score_list(gameId, userId, use_score_before_reset = True)
+	score_list.sort(key=lambda x:-x[1])
+	ret = json.dumps([[int(x,16), y] for x, y in score_list])
+	print time.time() - startTime
+	db.update_api_usage(gameId, 'friend_scores_before_last_reset')
+	return ret
+
 @app.route('/update_score/<gameId>/<int:userId>/<int:score>', methods=['POST'])
 def update_score(gameId, userId, score):
 	startTime = time.time()

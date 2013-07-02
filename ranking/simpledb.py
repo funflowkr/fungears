@@ -33,6 +33,39 @@ conn = boto.sdb.connect_to_region(config.region,
 	is_secure=False
 )
 
+def make_new_score(game, scores, score, t):
+	lt = get_last_reset_time(game)
+	interval = int(game['i'])
+	new_scores = [0]*4
+	if len(scores)%2 == 1:
+		scores.append(0)
+	for i in xrange(0, len(scores), 2):
+		item_score = scores[i]
+		item_time = scores[i+1]
+		if lt <= item_time < lt+interval and item_score > new_scores[0]:
+			new_scores[0] = item_score
+			new_scores[1] = item_time
+
+		if lt-interval <= item_time < lt and item_score > new_scores[2]:
+			new_scores[2] = item_score
+			new_scores[3] = item_time
+	if t >= lt and new_scores[0] < score:
+		new_scores[0] = score
+		new_scores[1] = t
+	return new_scores
+
+def dump_scores(scores):
+	return ' '.join(str(x) for x in scores)
+
+def load_scores(scoreString):
+	if not scoreString:
+		return [0,0]
+	scores = [int(x) for x in scoreString.split()]
+	scores = scores[:4]
+	if len(scores) < 2:
+		scores.append(0)
+	return scores
+
 def get_last_reset_time(g, t = None):
 	if t is None:
 		t = time.time()
@@ -40,11 +73,23 @@ def get_last_reset_time(g, t = None):
 	interval = int(g['i'])
 	return t - (t - base) % interval
 
-def get_current_score(g, score, t, lt = None):
+def get_score_before_reset(g, scores):
+	interval = g['i']
+	last_reset_time = get_last_reset_time(g)
+	if len(scores)%2 == 1:
+		scores.append(0)
+	for i in xrange(0, len(scores), 2):
+		item_score = scores[i]
+		item_time = scores[i+1]
+		if last_reset_time-interval <= item_time < last_reset_time:
+			return item_score
+	return 0
+
+def get_current_score(g, scores, lt = None):
 	if lt is None:
 		lt = get_last_reset_time(g)
-	if int(t) > lt:
-		return int(score)
+	if len(scores) >= 2 and int(scores[1]) >= lt:
+		return int(scores[0])
 	return 0
 
 def DomainCreator(preCreateDomainName, mature):
@@ -159,8 +204,8 @@ class DB(object):
 			result[dom].append(k)
 		return result
 
-	def cache_user_score(self, game_id, u_id, score, time):
-		data = str('%s %s' % (score, time))
+	def cache_user_score(self, game_id, u_id, scores):
+		data = dump_scores(scores)
 		cache.put(build_key(game_id, u_id)+'s', data, 86400*7)
 
 	def cache_user_friend(self, game_id, u_id, friends):
@@ -168,7 +213,7 @@ class DB(object):
 		cache.put(build_key(game_id, u_id)+'f', data, 86400*7)
 
 	def cache_user(self, game_id, u_id, user):
-		self.cache_user_score(game_id, u_id, user['s'], user['t'])
+		self.cache_user_score(game_id, u_id, user['s'])
 		if 'f' in user:
 			self.cache_user_friend(game_id, u_id, user['f'])
 
@@ -184,25 +229,29 @@ class DB(object):
 		user = self.get_user(game_id, u_id)
 		return user['f']
 
-	def get_user_score(self, game_id, u_id, only_from_cache=False, prefetch = None):
+	def get_user_score(self, game_id, u_id, only_from_cache=False, prefetch = None, use_score_before_reset = False):
 		g = self.get_game(game_id)
 		if g is None:
 			return 0
 		k = build_key(game_id, u_id)
-		c = None
+		cachedData = None
 		if prefetch and k+'s' in prefetch:
-			c = prefetch[k+'s']
-		if c is None:
-			c = cache.get(k+'s')
-		if c:
-			s, t = c.split(' ')
-			return get_current_score(g, s, int(t))
+			cachedData = prefetch[k+'s']
+		if cachedData is None:
+			cachedData = cache.get(k+'s')
+		if cachedData:
+			scores = load_scores(cachedData)
+			if use_score_before_reset:
+				return get_score_before_reset(g, s)
+			return get_current_score(g, s)
 		if only_from_cache:
 			return None
 		user = self.get_user(game_id, u_id)
 		if user is None:
 			return 0
-		return get_current_score(g, user['s'], int(user['t']))
+		if use_score_before_reset:
+			return get_score_before_reset(g, user['s'])
+		return get_current_score(g, user['s'])
 
 	def put_game(self, game_id, resetBase, resetInterval, key = None):
 		g = self.get_game(game_id)
@@ -248,7 +297,7 @@ class DB(object):
 			cached_friend = cache.get(k+'f')
 			if cached_score and cached_friend:
 				u = {}
-				u['s'], u['t'] = cached_score.split()
+				u['s'] = load_score(cached_score)
 				if cached_friend == '':
 					u['f'] = []
 				else:
@@ -263,15 +312,15 @@ class DB(object):
 					if 'f' not in item:
 						item['f'] = []
 					if 's' not in item:
-						item['s'] = 0
-					if 't' not in item:
-						item['t'] = int(time.time())
+						item['s'] = [0, int(time.time())]
+					else:
+						item['s'] = load_scores(item['s'])
 					friends = ''
 					if type(item['f']) == list:
 						friends = ','.join(item['f'])
 					else:
 						friends = item['f']
-					item = dict(s=int(item['s']),t=int(item['t']),f=friends.split(','))
+					item = dict(s=item['s'],f=friends.split(','))
 					self.cache_user(game_id, u_id, item)
 					if with_domain:
 						return item, dom
@@ -286,9 +335,9 @@ class DB(object):
 				dom = db.find_domain_for_key(k)
 				add_user(game_id, u_id)
 				if with_domain:
-					return dict(s=0,t=int(time.time()),f=[]), dom
+					return dict(s=[0,int(time.time())],f=[]), dom
 				else:
-					return dict(s=0,t=int(time.time()),f=[])
+					return dict(s=[0,int(time.time())],f=[])
 
 def setShardingCount(n):
 	old_domain_count = db.domain_count
@@ -318,9 +367,9 @@ def add_user(game_id,u_id):
 		return
 	k = build_key(game_id, u_id)
 	dom = db.find_domain_for_key(k)
-	r = dom.put_attributes(k, {'s':0,'t':int(time.time())})
+	r = dom.put_attributes(k, {'s':'0 %s' %int(time.time())})
 	if r:
-		db.cache_user_score(game_id, u_id, 0, int(time.time()))
+		db.cache_user_score(game_id, u_id, [0, int(time.time())])
 	return r
 
 def update_friends(game_id, u_id, f_ids):
@@ -347,14 +396,14 @@ def update_friends(game_id, u_id, f_ids):
 		if friends:
 			backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
 	else:
-		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s'], 't':user['t']}), boto.exception.SDBResponseError)
+		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s']}), boto.exception.SDBResponseError)
 	db.cache_user_friend(game_id, u_id, friends)
 	return True
 
 def get_ranking(game_id, u_id):
 	return get_ranking_from(game_id, u_id, u_id)
 
-def get_friend_score_list(game_id, u_id):
+def get_friend_score_list(game_id, u_id, use_score_before_reset = False):
 	print 
 	print 'get_friend_score_list'
 	friendStartTime = time.time()
@@ -373,7 +422,7 @@ def get_friend_score_list(game_id, u_id):
 	#print 'TEST: limiting friends to 100'
 	#f_ids = f_ids[:100]
 	scores = dict((f, 0) for f in f_ids)
-	scores['%x'%u_id] = db.get_user_score(game_id, u_id)
+	scores['%x'%u_id] = db.get_user_score(game_id, u_id, use_score_before_reset)
 	step = 0
 	#print time.time() - friendStartTime, "START", len(f_ids)
 	debug_fc = 0
@@ -394,7 +443,7 @@ def get_friend_score_list(game_id, u_id):
 			#print 'FOR', dom, len(friends_all), time.time() - friendStartTime
 			def helper(dom, part):
 				#print 'helper',dom,part,time.time()-friendStartTime
-				query = 'select s,t from %s where ' % dom.name
+				query = 'select s from %s where ' % dom.name
 				query += 'itemName() in (' +  ', '.join("'%s'" % build_key(game_id,f) for f in part) + ')'
 				def select_try():
 					qn[0] += 1
@@ -402,14 +451,19 @@ def get_friend_score_list(game_id, u_id):
 					tt=t
 					select_result = dom.select(query)
 					for f in select_result:
+						friend_scores = load_scores(f['s'])
 						t2=time.time()
 						#print 'select_try',f,f.name,parse_key(f.name)[1]
-						scores[parse_key(f.name)[1]] = get_current_score(g, f['s'], f['t'])
-						proceed.add(parse_key(f.name)[1])
+						key = parse_key(f.name)[1]
+						if use_score_before_reset:
+							scores[key] = get_score_before_reset(g, friend_scores)
+						else:
+							scores[key] = get_current_score(g, friend_scores)
+						proceed.add(key)
 						sem.release()
-						db.cache_user_score(game_id, parse_key(f.name)[1], f['s'], f['t'])
+						db.cache_user_score(game_id, key, friend_scores)
 						t += time.time() - t2
-					qn.append((time.time() - t, time.time() - tt))
+					#qn.append((time.time() - t, time.time() - tt))
 				# if all data comes from cache, no need to query
 				#if '()' not in query:
 				backoff(select_try, boto.exception.SDBResponseError)
@@ -420,14 +474,14 @@ def get_friend_score_list(game_id, u_id):
 							if f not in scores:
 								scores[f] = 0
 							sem.release()
-							db.cache_user_score(game_id, f, 0, int(time.time()))
+							db.cache_user_score(game_id, f, [0, int(time.time())])
 			partSize = 20
 			def create_task_helper(friends_all, dom, proceed, sem, createTaskSem, subTasks):
 				#print 'create_task_helper', time.time() - friendStartTime
 				#create_task_helpertime = time.time()
 				collectedPartsNotInCache = []
 				for f in friends_all:
-					f_score = db.get_user_score(game_id, f, only_from_cache = True, prefetch = cacheData)
+					f_score = db.get_user_score(game_id, f, only_from_cache = True, prefetch = cacheData, use_score_before_reset = use_score_before_reset)
 					if f_score is None:
 						collectedPartsNotInCache.append(f)
 					else:
@@ -573,19 +627,19 @@ def update_score(game_id, u_id, score, forced = False):
 			return False, 0
 		dom = db.find_domain_for_key(k)
 
-		oldt = user['t']
-		#if '.' in user['t']:
-			#user['t'] = str(int(float(user['t'])))
-		currentScore = get_current_score(g, user['s'], user['t'])
+		oldt = user['s'][1]
+		currentScore = get_current_score(g, user['s'])
 		if currentScore < score or forced:
 			try:
+				newScore = make_new_score(g, user['s'], score, t)
+				scoreToStore = dump_score(newScore)
 				print time.time() - startTime, step, 'before put'
 				if old_dom.name != dom.name:
-					dom.put_attributes(k, {'s':score, 't':t, 'f':user['f']})
+					dom.put_attributes(k, {'s':scoreToStore, 'f':user['f']})
 				else:
-					dom.put_attributes(k, {'s':score, 't':t}, expected_value=['t',oldt])
+					dom.put_attributes(k, {'s':scoreToStore})
 				print time.time() - startTime, step, 'before cache'
-				db.cache_user_score(game_id, u_id, score, t)
+				db.cache_user_score(game_id, u_id, newScore)
 				print time.time() - startTime, step, 'return'
 				return True, score
 			except boto.exception.SDBResponseError as e:
