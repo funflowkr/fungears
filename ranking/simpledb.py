@@ -49,6 +49,9 @@ def make_new_score(game, scores, score, t):
 		if lt-interval <= item_time < lt and item_score > new_scores[2]:
 			new_scores[2] = item_score
 			new_scores[3] = item_time
+	if lt - interval <= t < lt and new_scores[2] < score:
+		new_scores[2] = score
+		new_scores[3] = t
 	if t >= lt and new_scores[0] < score:
 		new_scores[0] = score
 		new_scores[1] = t
@@ -203,7 +206,7 @@ class DB(object):
 
 	def cache_user_friend(self, game_id, u_id, friends):
 		data = ','.join(friends)
-		cache.put(build_key(game_id, u_id)+'f', data, 86400*7)
+		cache.put(build_key(game_id, u_id)+'F', data, 86400*7)
 
 	def cache_user(self, game_id, u_id, user):
 		self.cache_user_score(game_id, u_id, user['s'])
@@ -212,8 +215,10 @@ class DB(object):
 
 	def get_user_friends(self, game_id, u_id, only_from_cache=False):
 		k = build_key(game_id, u_id)
-		c = cache.get(k+'f')
-		if c:
+		c = cache.get(k+'F')
+		if c is not None:
+			if c == '':
+				return []
 			return c.split(',')
 		if c == '':
 			return []
@@ -235,8 +240,8 @@ class DB(object):
 		if cachedData:
 			scores = load_scores(cachedData)
 			if use_score_before_reset:
-				return get_score_before_reset(g, s)
-			return get_current_score(g, s)
+				return get_score_before_reset(g, scores)
+			return get_current_score(g, scores)
 		if only_from_cache:
 			return None
 		user = self.get_user(game_id, u_id)
@@ -256,6 +261,7 @@ class DB(object):
 			r = g['k']
 		self.game_domain.put_attributes(game_id, {'b':resetBase, 'i':resetInterval, 'k':r})
 		cache.put(game_id + 'g', '%d %d %s' % (resetBase, resetInterval, r))
+		print resetBase, resetInterval, r,cache.get(game_id+'g')
 		return r
 		
 	def get_game(self, game_id):
@@ -287,10 +293,10 @@ class DB(object):
 		k = build_key(game_id, u_id)
 		if not with_domain:
 			cached_score = cache.get(k+'s')
-			cached_friend = cache.get(k+'f')
-			if cached_score and cached_friend:
+			cached_friend = cache.get(k+'F')
+			if cached_score is not None and cached_friend is not None:
 				u = {}
-				u['s'] = load_score(cached_score)
+				u['s'] = load_scores(cached_score)
 				if cached_friend == '':
 					u['f'] = []
 				else:
@@ -389,7 +395,10 @@ def update_friends(game_id, u_id, f_ids):
 		if friends:
 			backoff(lambda:dom.put_attributes(k, {'f':friends}), boto.exception.SDBResponseError)
 	else:
-		backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s']}), boto.exception.SDBResponseError)
+		if friends:
+			backoff(lambda:dom.put_attributes(k, {'f':friends, 's':user['s']}), boto.exception.SDBResponseError)
+		else:
+			backoff(lambda:dom.put_attributes(k, {'s':user['s']}), boto.exception.SDBResponseError)
 	db.cache_user_friend(game_id, u_id, friends)
 	return True
 
@@ -398,7 +407,7 @@ def get_ranking(game_id, u_id):
 
 def get_friend_score_list(game_id, u_id, use_score_before_reset = False):
 	print 
-	print 'get_friend_score_list'
+	print 'get_friend_score_list', use_score_before_reset
 	friendStartTime = time.time()
 	g = get_game(game_id)
 	if g is None:
@@ -415,18 +424,19 @@ def get_friend_score_list(game_id, u_id, use_score_before_reset = False):
 	#print 'TEST: limiting friends to 100'
 	#f_ids = f_ids[:100]
 	scores = dict((f, 0) for f in f_ids)
-	scores['%x'%u_id] = db.get_user_score(game_id, u_id, use_score_before_reset)
+	scores['%x'%u_id] = db.get_user_score(game_id, u_id, use_score_before_reset = use_score_before_reset)
 	step = 0
 	#print time.time() - friendStartTime, "START", len(f_ids)
 	debug_fc = 0
 	debug_fc2 = 0
-	print 'BEFORE_FOR', time.time() - friendStartTime
+	print 'BEFORE_MGET', time.time() - friendStartTime
 	cacheData = cache.mget(build_key(game_id, x)+'s' for x in f_ids)
+	print 'BEFORE_FOR', time.time() - friendStartTime
 	qn = [0,0]
 	while f_ids:
 		proceed = set()
-		sem = gevent.coros.Semaphore(1)
-		createTaskSem = gevent.coros.Semaphore(1)
+		sem = gevent.coros.Semaphore(0)
+		createTaskSem = gevent.coros.Semaphore(0)
 		subTasks = []
 		print 'BEFORE_SPLIT', time.time() - friendStartTime
 		splitResult = db.split_keys_by_domain(game_id, f_ids, step).iteritems()
@@ -625,13 +635,13 @@ def update_score(game_id, u_id, score, forced = False):
 		if currentScore < score or forced:
 			try:
 				newScore = make_new_score(g, user['s'], score, t)
-				scoreToStore = dump_score(newScore)
+				scoreToStore = dump_scores(newScore)
 				print time.time() - startTime, step, 'before put'
 				if old_dom.name != dom.name:
 					dom.put_attributes(k, {'s':scoreToStore, 'f':user['f']})
 				else:
 					dom.put_attributes(k, {'s':scoreToStore})
-				print time.time() - startTime, step, 'before cache'
+				print time.time() - startTime, step, 'before cache', newScore
 				db.cache_user_score(game_id, u_id, newScore)
 				print time.time() - startTime, step, 'return'
 				return True, score
