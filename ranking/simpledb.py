@@ -144,14 +144,7 @@ class DB(object):
 	def load_caches(self):
 		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
 		cache.init([
-	'ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0002.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0003.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0004.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0005.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0006.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0007.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0008.apne1.cache.amazonaws.com:11211',
+	'ranking-cache.ispvtc.0001.apne1.cache.amazonaws.com:11211',
 ])
 		#cache.init(['192.168.0.4:11211'])
 
