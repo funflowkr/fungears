@@ -1,0 +1,5 @@
+
+region = 'ap-northeast-1'
+access_key = 'AWS_ACCESS_KEY'
+secret_key = 'AWS_SECRET_KEY'
+flask_secret_key = 'FLASK_SECRET_KEY'
