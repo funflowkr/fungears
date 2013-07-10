@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  
+  <head>
+    <title>index</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+    <link rel="stylesheet" href="static/css/bootstrap.css">
+    <link rel="stylesheet" href="static/css/bootstrap-responsive.css">
+    <script src="static/js/jquery.min.js"></script>
+    <script src="static/js/bootstrap.min.js"></script>
+  </head>
+  
+  <body>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="brand" href="#">fungears</a>
+          <a></a>
+          <div class="navbar-content">
+            <ul class="nav">
+              <li class="active">
+                <a href="#">My Games</a> 
+              </li>
+              <li>
+                <a href="#">Documents</a> 
+              </li>
+              <li>
+                <a href="#">Downloads</a> 
+              </li>
+              <li>
+                <a href="#">Supports</a> 
+              </li>
+              <li>
+                <a href="#"><br></a> 
+              </li>
+            </ul>
+          </div>
+          <div class="btn-group pull-right">
+            <ul class="dropdown-menu">
+              <li>
+                <a href="#">Account Settings</a> 
+              </li>
+              <li>
+                <a href="#">LogOut</a> 
+              </li>
+            </ul>
+          </div>
+          <div class="container pull-right">
+            <a class="btn btn-primary">Log in</a>
+            <!--<a class="btn btn-success">Sign Up</a> -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <h1 class="page-header">Log in</h1>
+	  	{{ msg }}
+      <form method='POST'>
+        <label>Input game name and secret key.</label>
+        <input name="game" type="text" class="input-large"
+        placeholder="game name">
+        <br>
+        <input name="key" type="password" class="input-large" placeholder="secret key">
+        <br>
+        <a class="btn btn-primary btn-large" onclick="submit();">Log in</a>
+        <!--<a class="btn btn-success btn-large btn-disabled">Sign Up</a> -->
+      </form>
+    </div>
+  </body>
+
+</html>
