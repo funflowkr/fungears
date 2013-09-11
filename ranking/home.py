@@ -7,6 +7,7 @@ import string
 import time
 import config
 import urlparse
+import sys
 from werkzeug.exceptions import *
 db.init(config.isTest)
 
@@ -133,4 +134,7 @@ def debug_get_scores_and_ranking_from(gameId, userId):
 	return json.dumps([[int(x,16), y, rankings[int(x,16)]] for x, y in score_list])
 
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=80, debug=True)
+	port = 80
+	if len(sys.argv)>1:
+		port = int(sys.argv[1])
+	app.run(host='0.0.0.0', port=port, debug=True)
