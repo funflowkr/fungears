@@ -266,7 +266,7 @@ class DB(object):
 		
 	def get_game(self, game_id):
 		if game_id in self.gameCache:
-			if self.gameCache[game_id]['t'] - time.time() < 30*60:
+			if time.time() - self.gameCache[game_id]['t'] < 5*60:
 				return self.gameCache[game_id]
 		g = cache.get(game_id + 'g')
 		if g is None:
