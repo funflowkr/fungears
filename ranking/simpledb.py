@@ -12,6 +12,7 @@ gevent.monkey.patch_all()
 import thread
 import boto
 import boto.sdb as sdb
+import socket
 
 import random
 import bisect
@@ -32,6 +33,27 @@ conn = boto.sdb.connect_to_region(config.region,
 	aws_secret_access_key=config.secret_key,
 	is_secure=False
 )
+
+def get_cache_config(isTest):
+	if isTest:
+		addr = 'ranking-cache-test.ispvtc.0001.apne1.cache.amazonaws.com'
+	else:
+		addr = 'ranking-cache.ispvtc.0001.apne1.cache.amazonaws.com'
+	s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.connect((addr, 11211))
+	s.send('config get cluster\r\n')
+	d = ''
+	while 1:
+		d += s.recv(1024)
+		if 'END\r\n' in d:
+			break
+	body = d.split('\r\n')[1]
+	version, hosts, trailing = body.split('\n')
+	version = int(version)
+	def tohostname(h):
+		a = h.split('|')
+		return a[0]+':'+a[2]
+	return version, [tohostname(h) for h in  hosts.split(' ')]
 
 def make_new_score(game, scores, score, t):
 	lt = get_last_reset_time(game)
@@ -114,6 +136,7 @@ class DomainProxy(boto.sdb.domain.Domain):
 class DB(object):
 	def __init__(self, isTest = True):
 		self.gameCache = {}
+		self.isTest = isTest
 		if isTest:
 			self.master_domain_name = 'master_test'
 			self.prefix = 'node_test'
@@ -144,11 +167,26 @@ class DB(object):
 		self.load_servers()
 		self.load_caches()
 
+	def update_cache_config(self):
+		if time.time() - self.lastCacheUpdated > 60:
+			version, hosts = get_cache_config(self.isTest)
+			if self.cacheVersion == version:
+				return
+			print 'CACHE_CONFIG_UPDATE', hosts
+			self.cacheVersion = version
+			cache.init(hosts)
+			self.lastCacheUpdated = time.time()
+			
 	def load_caches(self):
+		version, hosts = get_cache_config(self.isTest)
+		self.cacheVersion = version
+		print 'CACHE_CONFIG_UPDATE', hosts
+		cache.init(hosts)
+		self.lastCacheUpdated = time.time()
 		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
-		cache.init([
-	'ranking-cache.ispvtc.0001.apne1.cache.amazonaws.com:11211',
-])
+		#cache.init([
+	#'ranking-cache.ispvtc.0001.apne1.cache.amazonaws.com:11211',
+#])
 		#cache.init(['192.168.0.4:11211'])
 
 	def load_servers(self):
@@ -429,7 +467,7 @@ def get_friend_score_list(game_id, u_id, use_score_before_reset = False):
 	#print time.time() - friendStartTime, "START", len(f_ids)
 	debug_fc = 0
 	debug_fc2 = 0
-	print 'BEFORE_MGET', time.time() - friendStartTime
+	#print 'BEFORE_MGET', time.time() - friendStartTime
 	cacheData = cache.mget(build_key(game_id, x)+'s' for x in f_ids)
 	print 'BEFORE_FOR', time.time() - friendStartTime
 	qn = [0,0]
@@ -438,9 +476,9 @@ def get_friend_score_list(game_id, u_id, use_score_before_reset = False):
 		sem = gevent.coros.Semaphore(0)
 		createTaskSem = gevent.coros.Semaphore(0)
 		subTasks = []
-		print 'BEFORE_SPLIT', time.time() - friendStartTime
+		#print 'BEFORE_SPLIT', time.time() - friendStartTime
 		splitResult = db.split_keys_by_domain(game_id, f_ids, step).iteritems()
-		print 'AFTER_SPLIT', time.time() - friendStartTime
+		#print 'AFTER_SPLIT', time.time() - friendStartTime
 		for dom, friends_all in splitResult:
 			debug_fc+=len(friends_all)
 			#print 'FOR', dom, len(friends_all), time.time() - friendStartTime
@@ -577,6 +615,7 @@ def update_api_usage(game_id, api_name, count = 1):
 	buffer_game = api_usage_buffer.setdefault(game_id, {})
 	def helper():
 		while 1:
+			db.update_cache_config()
 			currentTime = time.time()
 			candidate = [None, None, 0, 0]
 			for game_id, api_counts in api_usage_buffer.iteritems():
@@ -628,7 +667,6 @@ def update_score(game_id, u_id, score, forced = False):
 	k = build_key(game_id, u_id)
 	step = 0
 	while 1:
-		print time.time() - startTime, step
 		user, old_dom = db.get_user(game_id, u_id, with_domain = True)
 		if user is None:
 			return False, 0
@@ -640,14 +678,14 @@ def update_score(game_id, u_id, score, forced = False):
 			try:
 				newScore = make_new_score(g, user['s'], score, t)
 				scoreToStore = dump_scores(newScore)
-				print time.time() - startTime, step, 'before put'
+				#print time.time() - startTime, step, 'before put'
 				if old_dom.name != dom.name:
 					dom.put_attributes(k, {'s':scoreToStore, 'f':user['f']})
 				else:
 					dom.put_attributes(k, {'s':scoreToStore})
 				print time.time() - startTime, step, 'before cache', newScore
 				db.cache_user_score(game_id, u_id, newScore)
-				print time.time() - startTime, step, 'return'
+				#print time.time() - startTime, step, 'return'
 				return True, score
 			except boto.exception.SDBResponseError as e:
 				#print e

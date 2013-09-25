@@ -77,8 +77,6 @@ class MemCachePool(object):
 
 class Cache(object):
 	def __init__(self, info):
-		self.servers = {}
-		self.ring = HashRing()
 		self.update(info)
 		self.localCache = LocalCache()
 
@@ -87,11 +85,12 @@ class Cache(object):
 		pass
 	
 	def update(self, info):
-		old_servers = self.servers.copy()
+		self.ring = HashRing()
+		self.servers = {}
 		for addr in info:
-			if addr in self.servers:
-				del old_servers[addr]
-				continue
+			#if addr in self.servers:
+				#del old_servers[addr]
+				#continue
 			r = None
 			#if ':' in addr:
 				#host, port = addr.split(':')
@@ -102,9 +101,9 @@ class Cache(object):
 			r = MemCachePool(addr)#memcache.Client([addr], debug=True)
 			self.servers[addr] = r
 			self.ring.add_node(r)
-		for k, r in old_servers.itervalues():
-			del self.servers[k]
-			self.ring.remove_node(r)
+		#for k, r in old_servers.itervalues():
+			#del self.servers[k]
+			#self.ring.remove_node(r)
 
 	def mget(self, keys):
 		_t = time.time()
