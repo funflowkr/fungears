@@ -147,14 +147,7 @@ class DB(object):
 	def load_caches(self):
 		#cache.init(['ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211'])
 		cache.init([
-	'ranking-cache-small.ispvtc.0001.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0002.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0003.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0004.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0005.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0006.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0007.apne1.cache.amazonaws.com:11211',
-	'ranking-cache-small.ispvtc.0008.apne1.cache.amazonaws.com:11211',
+	'ranking-cache.ispvtc.0001.apne1.cache.amazonaws.com:11211',
 ])
 		#cache.init(['192.168.0.4:11211'])
 
@@ -273,7 +266,7 @@ class DB(object):
 		
 	def get_game(self, game_id):
 		if game_id in self.gameCache:
-			if self.gameCache[game_id]['t'] - time.time() < 30*60:
+			if time.time() - self.gameCache[game_id]['t'] < 5*60:
 				return self.gameCache[game_id]
 		g = cache.get(game_id + 'g')
 		if g is None:
@@ -576,6 +569,7 @@ api_save_condition = (
 (10000000, 60),
 (100000, 60*5),
 (1000, 60*15),
+(10, 60*30),
 (1, 60*60),
 )
 def update_api_usage(game_id, api_name, count = 1):
@@ -591,7 +585,7 @@ def update_api_usage(game_id, api_name, count = 1):
 						if api_count[1] >= count_condition and currentTime - api_count[0] > time_condition:
 							break
 					else:
-						break
+						continue
 					if candidate[2:] < api_count:
 						candidate = [game_id, api_name, api_count[0], api_count[1]]
 			if candidate[0] is not None:
@@ -611,16 +605,19 @@ def update_api_usage(game_id, api_name, count = 1):
 							item[api_name]])
 					api_usage_buffer[game_id][plain_api_name][0] = time.time()
 					api_usage_buffer[game_id][plain_api_name][1] -= update_count
+					if api_usage_buffer[game_id][plain_api_name][1] == 0:
+						del api_usage_buffer[game_id][plain_api_name]
 					print 'API USAGE UPDATE', game_id, api_name, update_count
 				backoff(api_usage_update_helper, boto.exception.SDBResponseError)
 					
-			gevent.sleep(1)
+			gevent.sleep(60)
 	if api_usage_update_worker == None:
 		api_usage_update_worker = gevent.spawn(helper)
 	if api_name in buffer_game:
 		buffer_game[api_name][1] += count
 	else:
 		buffer_game[api_name] = [time.time(), count]
+	print 'API_USAGE BUFFER', buffer_game
 
 def update_score(game_id, u_id, score, forced = False):
 	startTime = time.time()

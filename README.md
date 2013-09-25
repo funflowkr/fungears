@@ -71,6 +71,17 @@
       - 0번 유저가 1, 2, 3번 유저를 친구로 가지고 있는 경우의 리턴 값은 [[0,0],[1,0],[2,0],[3,0]]의 형태가 된다.
 	  - 점수가 큰 유저부터 정렬되서 리턴됨.
 
+  - GET /friend_scores_before_last_reset/(gameId)/(userId)
+    POST /friend_scores_before_last_reset/(gameId)/(userId)
+    - 마지막 리셋 전의 해당 유저 점수 및 친구 점수를 읽어옴
+	- 지난주 랭킹 등을 구현하는 용
+    - Paramter
+      - secret: gameId에 해당하는 secret
+    - Return value
+      - [[id1, score1], [id2, score2], ...]
+      - 0번 유저가 1, 2, 3번 유저를 친구로 가지고 있는 경우의 리턴 값은 [[0,0],[1,0],[2,0],[3,0]]의 형태가 된다.
+	  - 점수가 큰 유저부터 정렬되서 리턴됨.
+
   - POST /update_score/(gameId)/(userId)/(score)
     - 해당 유저의 점수를 갱신
     - Paramter
